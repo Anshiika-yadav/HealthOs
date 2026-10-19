@@ -11,29 +11,40 @@ const apiClient: AxiosInstance = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
-  withCredentials: true, // support HTTP-only cookie sessions
+  withCredentials: true,
 })
 
-// ─── Request interceptor: attach bearer token if stored ───────────────────────
+// ─── Request interceptor: attach bearer token ─────────────────────────────────
 apiClient.interceptors.request.use((config: InternalAxiosRequestConfig) => {
-  const token = sessionStorage.getItem('_hat') // hashed access token — kept in sessionStorage only
+  const token = sessionStorage.getItem('_hat')
   if (token && config.headers) {
     config.headers.Authorization = `Bearer ${token}`
   }
   return config
 })
 
-// ─── Response interceptor: handle 401 / 403 globally ─────────────────────────
+// ─── Response interceptor ─────────────────────────────────────────────────────
 apiClient.interceptors.response.use(
   (res) => res,
   async (error) => {
     const status: number = error?.response?.status
+    const url: string = error?.config?.url ?? ''
 
-    if (status === 401) {
-      // Try token refresh if endpoint available
+    // Do NOT attempt refresh for auth endpoints themselves — avoids infinite loops
+    const isAuthEndpoint =
+      url.includes('/auth/login') ||
+      url.includes('/auth/refresh') ||
+      url.includes('/auth/logout')
+
+    if (status === 401 && !isAuthEndpoint) {
+      // Try silent token refresh
       try {
-        await axios.post(`${BASE_URL}/auth/refresh`, {}, { withCredentials: true })
-        // Retry original request
+        await axios.post(
+          `${BASE_URL}/auth/refresh`,
+          {},
+          { withCredentials: true }
+        )
+        // Retry the original request once
         return apiClient(error.config as AxiosRequestConfig)
       } catch {
         sessionStorage.removeItem('_hat')
