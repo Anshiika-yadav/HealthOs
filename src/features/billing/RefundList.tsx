@@ -18,6 +18,8 @@ export function RefundList() {
   const [page, setPage] = useState(1)
   const [statusFilter, setStatusFilter] = useState('')
   const [confirmApprove, setConfirmApprove] = useState<Refund | null>(null)
+  const [confirmReject, setConfirmReject] = useState<Refund | null>(null)
+  const [rejectReason, setRejectReason] = useState('')
 
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['refunds', { page, status: statusFilter }],
@@ -32,6 +34,17 @@ export function RefundList() {
       setConfirmApprove(null)
     },
     onError: () => toast('error', 'Failed to approve refund'),
+  })
+
+  const rejectMutation = useMutation({
+    mutationFn: ({ id, reason }: { id: string; reason: string }) => billingService.rejectRefund(id, reason),
+    onSuccess: () => {
+      toast('success', 'Refund rejected')
+      qc.invalidateQueries({ queryKey: ['refunds'] })
+      setConfirmReject(null)
+      setRejectReason('')
+    },
+    onError: () => toast('error', 'Failed to reject refund'),
   })
 
   const columns: Column<Refund>[] = [
@@ -55,9 +68,10 @@ export function RefundList() {
       key: 'actions',
       header: '',
       render: (row) => row.status === 'pending' ? (
-        <Button variant="success" size="xs" onClick={(e) => { e.stopPropagation(); setConfirmApprove(row) }}>
-          Approve
-        </Button>
+        <div className="flex gap-1" onClick={(e) => e.stopPropagation()}>
+          <Button variant="success" size="xs" onClick={() => setConfirmApprove(row)}>Approve</Button>
+          <Button variant="danger" size="xs" onClick={() => { setConfirmReject(row); setRejectReason('') }}>Reject</Button>
+        </div>
       ) : null,
     },
   ]
@@ -105,6 +119,17 @@ export function RefundList() {
         confirmLabel="Approve Refund"
         variant="primary"
         loading={approveMutation.isPending}
+      />
+
+      <ConfirmDialog
+        isOpen={!!confirmReject}
+        onClose={() => { setConfirmReject(null); setRejectReason('') }}
+        onConfirm={() => confirmReject && rejectMutation.mutate({ id: confirmReject.id, reason: rejectReason || 'Rejected by administrator' })}
+        title="Reject refund?"
+        message={`Reject the refund request of ${formatCurrency(confirmReject?.amount ?? 0, confirmReject?.currency ?? 'USD')} for ${confirmReject?.patientName}?`}
+        confirmLabel="Reject"
+        variant="danger"
+        loading={rejectMutation.isPending}
       />
     </div>
   )

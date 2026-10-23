@@ -115,7 +115,17 @@ export function EncounterWorkspace() {
   }
 
   const updateVitals = (field: keyof Vitals, value: string | number) => {
-    setEncounter((prev) => ({ ...prev, vitals: { ...(prev.vitals ?? {}), [field]: value } }))
+    setEncounter((prev) => {
+      const updatedVitals = { ...(prev.vitals ?? {}), [field]: value }
+      // Auto-calculate BMI when weight and height are both present
+      if ((field === 'weight' || field === 'height') && updatedVitals.weight && updatedVitals.height) {
+        const weightKg = updatedVitals.weight
+        const heightCm = updatedVitals.height
+        const heightM = heightCm / 100
+        updatedVitals.bmi = Math.round((weightKg / (heightM * heightM)) * 10) / 10
+      }
+      return { ...prev, vitals: updatedVitals }
+    })
   }
 
   if (!isNew && isLoading) return <SkeletonCard lines={8} />
@@ -196,7 +206,7 @@ export function EncounterWorkspace() {
           <Input label="Weight (kg)" type="number" value={encounter.vitals?.weight ?? ''} onChange={(e) => updateVitals('weight', parseFloat(e.target.value))} disabled={isFinalized} />
           <Input label="Height (cm)" type="number" value={encounter.vitals?.height ?? ''} onChange={(e) => updateVitals('height', parseFloat(e.target.value))} disabled={isFinalized} />
           <Input label="RR (breaths/min)" type="number" value={encounter.vitals?.respiratoryRate ?? ''} onChange={(e) => updateVitals('respiratoryRate', parseInt(e.target.value))} disabled={isFinalized} />
-          <Input label="BMI" type="number" value={encounter.vitals?.bmi ?? ''} onChange={(e) => updateVitals('bmi', parseFloat(e.target.value))} disabled={isFinalized} hint="Auto-calculated if possible" />
+          <Input label="BMI" type="number" value={encounter.vitals?.bmi ?? ''} onChange={(e) => updateVitals('bmi', parseFloat(e.target.value))} disabled={isFinalized} hint="Auto-calculated from weight & height" />
         </div>
       </Card>
 

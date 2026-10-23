@@ -42,6 +42,7 @@ export function UserList() {
   const [statusFilter, setStatusFilter] = useState('')
   const [showInvite, setShowInvite] = useState(false)
   const [confirmDeactivate, setConfirmDeactivate] = useState<User | null>(null)
+  const [confirmActivate, setConfirmActivate] = useState<User | null>(null)
   const [form, setForm] = useState<InviteForm>({
     name: '', email: '', phone: '', role: 'hospital_admin',
     tenantId: '', branchId: '', departmentId: '',
@@ -79,6 +80,34 @@ export function UserList() {
       setConfirmDeactivate(null)
     },
     onError: () => toast('error', 'Failed to deactivate user'),
+  })
+
+  const activateMutation = useMutation({
+    mutationFn: (id: string) => userService.activate(id),
+    onSuccess: () => {
+      toast('success', 'User activated')
+      qc.invalidateQueries({ queryKey: ['users'] })
+      setConfirmActivate(null)
+    },
+    onError: () => toast('error', 'Failed to activate user'),
+  })
+
+  const resendMutation = useMutation({
+    mutationFn: (id: string) => userService.resendInvitation(id),
+    onSuccess: () => toast('success', 'Invitation resent'),
+    onError: () => toast('error', 'Failed to resend invitation'),
+  })
+
+  const resetPwdMutation = useMutation({
+    mutationFn: (id: string) => userService.resetPassword(id),
+    onSuccess: () => toast('success', 'Password reset email sent'),
+    onError: () => toast('error', 'Failed to send reset email'),
+  })
+
+  const forceLogoutMutation = useMutation({
+    mutationFn: (id: string) => userService.forceLogout(id),
+    onSuccess: () => toast('success', 'User session terminated'),
+    onError: () => toast('error', 'Failed to force logout'),
   })
 
   const columns: Column<User>[] = [
@@ -135,11 +164,30 @@ export function UserList() {
       render: (row) => (
         <div className="relative group" onClick={(e) => e.stopPropagation()}>
           <Button variant="ghost" size="xs"><MoreVertical className="w-4 h-4" /></Button>
-          <div className="absolute right-0 top-full mt-1 w-40 bg-white rounded-lg shadow-dropdown border border-slate-200 py-1 z-10 hidden group-hover:block">
-            <button className="w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-50" onClick={() => { /* resend */ }}>Resend Invite</button>
-            <button className="w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-50" onClick={() => userService.resetPassword(row.id).then(() => toast('success', 'Reset email sent'))}>Reset Password</button>
+          <div className="absolute right-0 top-full mt-1 w-44 bg-white rounded-lg shadow-dropdown border border-slate-200 py-1 z-10 hidden group-hover:block">
+            {row.invitationStatus === 'pending' && (
+              <button className="w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-50"
+                onClick={() => resendMutation.mutate(row.id)}>
+                Resend Invite
+              </button>
+            )}
+            <button className="w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-50"
+              onClick={() => resetPwdMutation.mutate(row.id)}>
+              Reset Password
+            </button>
             {row.status === 'active' && (
-              <button className="w-full text-left px-3 py-2 text-sm text-danger-600 hover:bg-danger-50" onClick={() => setConfirmDeactivate(row)}>Deactivate</button>
+              <button className="w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-50"
+                onClick={() => forceLogoutMutation.mutate(row.id)}>
+                Force Logout
+              </button>
+            )}
+            {row.status === 'active' && (
+              <button className="w-full text-left px-3 py-2 text-sm text-danger-600 hover:bg-danger-50"
+                onClick={() => setConfirmDeactivate(row)}>Deactivate</button>
+            )}
+            {(row.status === 'inactive' || row.status === 'suspended') && (
+              <button className="w-full text-left px-3 py-2 text-sm text-success-700 hover:bg-success-50"
+                onClick={() => setConfirmActivate(row)}>Activate</button>
             )}
           </div>
         </div>
@@ -247,6 +295,17 @@ export function UserList() {
         confirmLabel="Deactivate"
         variant="danger"
         loading={deactivateMutation.isPending}
+      />
+
+      <ConfirmDialog
+        isOpen={!!confirmActivate}
+        onClose={() => setConfirmActivate(null)}
+        onConfirm={() => confirmActivate && activateMutation.mutate(confirmActivate.id)}
+        title="Activate user?"
+        message={`Restore access for "${confirmActivate?.name}"?`}
+        confirmLabel="Activate"
+        variant="primary"
+        loading={activateMutation.isPending}
       />
     </div>
   )
