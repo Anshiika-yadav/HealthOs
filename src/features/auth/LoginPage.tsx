@@ -3,11 +3,10 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { Link, useNavigate, useLocation } from 'react-router-dom'
-import { Eye, EyeOff, Heart, Mail, Lock, Info } from 'lucide-react'
+import { Eye, EyeOff, Heart, Mail, Lock } from 'lucide-react'
 import { useAuth } from './AuthContext'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
-import { IS_MOCK_AUTH } from '@/services/mockAuth'
 
 const schema = z.object({
   email: z.string().min(1, 'Email is required').email('Enter a valid email address'),
@@ -17,29 +16,16 @@ const schema = z.object({
 
 type FormValues = z.infer<typeof schema>
 
-// Demo accounts shown only in mock/dev mode
-const DEMO_ACCOUNTS = [
-  { role: 'Super Admin',        email: 'superadmin@healthos.dev' },
-  { role: 'Hospital Admin',     email: 'admin@hospital.dev' },
-  { role: 'Doctor',             email: 'doctor@hospital.dev' },
-  { role: 'Receptionist',       email: 'receptionist@hospital.dev' },
-  { role: 'Cashier',            email: 'cashier@hospital.dev' },
-  { role: 'Pharmacist',         email: 'pharmacist@hospital.dev' },
-  { role: 'Lab Technician',     email: 'labtech@hospital.dev' },
-  { role: 'Inventory Officer',  email: 'inventory@hospital.dev' },
-]
-
 export function LoginPage() {
   const { login, isLoading, error } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
   const [showPassword, setShowPassword] = useState(false)
   const [showTenantCode, setShowTenantCode] = useState(false)
-  const [showDemo, setShowDemo] = useState(false)
 
   const from = (location.state as { from?: { pathname: string } })?.from?.pathname ?? '/'
 
-  const { register, handleSubmit, setValue, formState: { errors, isSubmitting } } = useForm<FormValues>({
+  const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm<FormValues>({
     resolver: zodResolver(schema),
   })
 
@@ -50,12 +36,6 @@ export function LoginPage() {
     } catch {
       // error is displayed from context state
     }
-  }
-
-  const fillDemo = (email: string) => {
-    setValue('email', email)
-    setValue('password', 'demo1234')
-    setShowDemo(false)
   }
 
   return (
@@ -79,46 +59,6 @@ export function LoginPage() {
               Use your assigned credentials to access your hospital workspace.
             </p>
           </div>
-
-          {/* Demo accounts panel */}
-          {IS_MOCK_AUTH && (
-            <div className="mb-4">
-              <button
-                type="button"
-                onClick={() => setShowDemo(!showDemo)}
-                className="w-full flex items-center justify-between gap-2 px-3 py-2 bg-primary-50 border border-primary-200 rounded-lg text-sm text-primary-700 hover:bg-primary-100 transition-colors"
-              >
-                <span className="flex items-center gap-2">
-                  <Info className="w-4 h-4 flex-shrink-0" />
-                  <span className="font-medium">Demo mode — click to pick an account</span>
-                </span>
-                <span className="text-primary-400">{showDemo ? '▲' : '▼'}</span>
-              </button>
-
-              {showDemo && (
-                <div className="mt-2 border border-primary-200 rounded-lg overflow-hidden bg-white shadow-dropdown">
-                  <div className="px-3 py-2 bg-primary-50 border-b border-primary-100">
-                    <p className="text-xs text-primary-600 font-medium">
-                      All demo accounts use password: <code className="font-mono bg-primary-100 px-1 rounded">demo1234</code>
-                    </p>
-                  </div>
-                  <div className="divide-y divide-slate-100">
-                    {DEMO_ACCOUNTS.map((acc) => (
-                      <button
-                        key={acc.email}
-                        type="button"
-                        onClick={() => fillDemo(acc.email)}
-                        className="w-full flex items-center justify-between px-3 py-2.5 text-left hover:bg-slate-50 transition-colors"
-                      >
-                        <span className="text-sm font-medium text-slate-800">{acc.role}</span>
-                        <span className="text-xs text-slate-400 font-mono">{acc.email}</span>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
 
           {/* Error message */}
           {error && (
@@ -208,9 +148,6 @@ export function LoginPage() {
 
         <p className="text-center text-xs text-slate-400 mt-6">
           © {new Date().getFullYear()} HealthOS. All rights reserved.
-          {IS_MOCK_AUTH && (
-            <span className="ml-2 text-warning-500 font-medium">[Demo Mode]</span>
-          )}
         </p>
       </div>
     </div>
