@@ -53,7 +53,24 @@ async function migrate() {
     UPDATE tenants SET user_count = (SELECT COUNT(*) FROM users WHERE tenant_id = tenants.id),
     branch_count = (SELECT COUNT(*) FROM branches WHERE tenant_id = tenants.id)
   `)
-
+  // Reset id counters so new rows don't clash with the seeded ids
+  await pool.query(`
+    DO $$
+    DECLARE r RECORD;
+    BEGIN
+      FOR r IN
+        SELECT c.table_name, c.column_name,
+               pg_get_serial_sequence(format('public.%I', c.table_name), c.column_name) AS seq
+        FROM information_schema.columns c
+        WHERE c.table_schema = 'public' AND c.column_name = 'id'
+      LOOP
+        IF r.seq IS NOT NULL THEN
+          EXECUTE format('SELECT setval(%L, COALESCE((SELECT MAX(%I) FROM public.%I), 0) + 1, false)', r.seq, r.column_name, r.table_name);
+        END IF;
+      END LOOP;
+    END $$;
+  `)
+  
   console.log('\nMigration complete!')
   console.log('Test credentials:')
   console.log('  superadmin@test.com    / Test@1234  (super_admin)')
