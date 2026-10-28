@@ -137,6 +137,12 @@ export function LoginPage() {
           </form>
 
           <div className="mt-5 pt-5 border-t border-slate-100 text-center">
+            <p className="text-sm text-slate-600 mb-2">
+              New here?{' '}
+              <Link to="/signup" className="text-primary-600 hover:text-primary-700 font-semibold">
+                Create account
+              </Link>
+            </p>
             <p className="text-xs text-slate-500">
               Received an invitation?{' '}
               <Link to="/accept-invitation" className="text-primary-600 hover:text-primary-700 font-medium">

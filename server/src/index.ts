@@ -126,6 +126,84 @@ app.get('/api/v1/auth/me', authMiddleware(), async (req, res) => {
 })
 
 app.post('/api/v1/auth/logout', authMiddleware(false), async (_req, res) => res.json({ message: 'Logged out' }))
+
+const JOINABLE_ROLES = ['doctor','nurse','receptionist','cashier','pharmacist','lab_technician','inventory_officer','auditor']
+
+app.post('/api/v1/auth/register', async (req, res) => {
+  const { name, email, password, role, hospitalName } = req.body ?? {}
+  if (!name || !email || !password) return res.status(400).json({ message: 'Name, email and password are required' })
+  if (String(password).length < 8) return res.status(400).json({ message: 'Password must be at least 8 characters' })
+  const emailNorm = String(email).trim().toLowerCase()
+
+  const client = await pool.connect()
+  try {
+    const dup = await client.query('SELECT 1 FROM users WHERE LOWER(email) = $1', [emailNorm])
+    if (dup.rows.length > 0) return res.status(409).json({ message: 'An account with this email already exists.' })
+
+    await client.query('BEGIN')
+    const hospital = String(hospitalName ?? '').trim()
+    let tenantId: string
+    let branchId: string | null = null
+    let finalRole: string
+
+    const existing = hospital
+      ? await client.query('SELECT id FROM tenants WHERE LOWER(name) = LOWER($1) LIMIT 1', [hospital])
+      : await client.query('SELECT id FROM tenants ORDER BY id LIMIT 1')
+
+    if (existing.rows.length > 0) {
+      // Existing hospital join: never as admin
+      tenantId = existing.rows[0].id
+      finalRole = JOINABLE_ROLES.includes(role) ? role : 'receptionist'
+      const b = await client.query('SELECT id FROM branches WHERE tenant_id = $1 ORDER BY id LIMIT 1', [tenantId])
+      branchId = b.rows[0]?.id ?? null
+      await client.query('UPDATE tenants SET user_count = user_count + 1 WHERE id = $1', [tenantId])
+    } else {
+      // New hospital: creator becomes its admin
+      const code = 'HOSP-' + Math.random().toString(36).slice(2, 8).toUpperCase()
+      const t = await client.query(
+        `INSERT INTO tenants (name, code, email, status, branch_count, user_count, subscription_status, license_status)
+         VALUES ($1,$2,$3,'active',1,1,'trial','active') RETURNING id`,
+        [hospital || 'My Hospital', code, emailNorm])
+      tenantId = t.rows[0].id
+      const b = await client.query(
+        `INSERT INTO branches (tenant_id, name, code, email, is_headquarters, department_count, user_count)
+         VALUES ($1,'Main Branch','MAIN',$2,true,1,1) RETURNING id`, [tenantId, emailNorm])
+      branchId = b.rows[0].id
+      await client.query(
+        `INSERT INTO departments (tenant_id, branch_id, name, code) VALUES ($1,$2,'General Medicine','GEN')`,
+        [tenantId, branchId])
+      finalRole = 'hospital_admin'
+    }
+
+    const hash = await bcrypt.hash(String(password), 10)
+    const u = await client.query(
+      `INSERT INTO users (name, email, password_hash, role, tenant_id, branch_id, status, invitation_status)
+       VALUES ($1,$2,$3,$4,$5,$6,'active','accepted') RETURNING id`,
+      [String(name).trim(), emailNorm, hash, finalRole, tenantId, branchId])
+    await client.query('COMMIT')
+
+    const info = await pool.query(
+      `SELECT t.name AS tenant_name, t.code AS tenant_code, b.name AS branch_name
+       FROM tenants t LEFT JOIN branches b ON b.id = $2 WHERE t.id = $1`, [tenantId, branchId])
+    const token = jwt.sign({ userId: u.rows[0].id, role: finalRole, email: emailNorm }, JWT_SECRET, { expiresIn: '8h' })
+    res.status(201).json({
+      user: {
+        id: String(u.rows[0].id), name: String(name).trim(), email: emailNorm, role: finalRole, permissions: [],
+        tenantId: String(tenantId), tenantName: info.rows[0]?.tenant_name ?? null, tenantCode: info.rows[0]?.tenant_code ?? null,
+        branchId: branchId ? String(branchId) : null, branchName: info.rows[0]?.branch_name ?? null,
+        departmentId: null, isActive: true,
+      },
+      accessToken: token, expiresAt: Date.now() + 8 * 3600 * 1000,
+    })
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => {})
+    console.error('Register error:', err)
+    res.status(500).json({ message: 'Could not create account' })
+  } finally {
+    client.release()
+  }
+})
+
 app.post('/api/v1/auth/refresh', authMiddleware(), async (req, res) => {
   const u = (req as any).user
   const token = jwt.sign({ userId: u.id, role: u.role, email: u.email }, JWT_SECRET, { expiresIn: '8h' })

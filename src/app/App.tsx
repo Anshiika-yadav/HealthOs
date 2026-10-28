@@ -8,6 +8,7 @@ import { AppShell } from '@/components/layout/AppShell'
 
 // ── Auth ──────────────────────────────────────────────────────────────────────
 import { LoginPage } from '@/features/auth/LoginPage'
+import { SignupPage } from '@/features/auth/SignupPage'
 import { ForgotPasswordPage } from '@/features/auth/ForgotPasswordPage'
 import { ResetPasswordPage } from '@/features/auth/ResetPasswordPage'
 import { AcceptInvitationPage } from '@/features/auth/AcceptInvitationPage'
@@ -114,6 +115,7 @@ export default function App() {
             <Routes>
               {/* ─── Public ──────────────────────────────────────────────── */}
               <Route path="/login"              element={<LoginPage />} />
+              <Route path="/signup"              element={<SignupPage />} />
               <Route path="/forgot-password"    element={<ForgotPasswordPage />} />
               <Route path="/reset-password"     element={<ResetPasswordPage />} />
               <Route path="/accept-invitation"  element={<AcceptInvitationPage />} />

@@ -49,6 +49,20 @@ export const authService = {
     }
   },
 
+  // ── Register (Create account) ───────────────────────────────────────────────
+  async register(payload: { name: string; email: string; password: string; role: string; hospitalName?: string }): Promise<AuthResponse> {
+    try {
+      const { data } = await apiClient.post<AuthResponse>('/auth/register', payload)
+      if (data.accessToken) sessionStorage.setItem('_hat', data.accessToken)
+      return data
+    } catch (err: unknown) {
+      const message =
+        (err as { response?: { data?: { message?: string } } })?.response?.data?.message ??
+        'Could not create account. Please try again.'
+      throw Object.assign(new Error(message), { response: { data: { message } } })
+    }
+  },
+
   // ── Logout ──────────────────────────────────────────────────────────────────
   async logout(): Promise<void> {
     try {

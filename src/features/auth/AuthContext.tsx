@@ -39,6 +39,7 @@ function authReducer(state: AuthState, action: AuthAction): AuthState {
 
 interface AuthContextValue extends AuthState {
   login: (email: string, password: string, tenantCode?: string) => Promise<void>
+  register: (payload: { name: string; email: string; password: string; role: string; hospitalName?: string }) => Promise<void>
   logout: () => Promise<void>
   refreshUser: () => Promise<void>
 }
@@ -90,6 +91,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [])
 
+  const register = useCallback(async (payload: { name: string; email: string; password: string; role: string; hospitalName?: string }) => {
+    dispatch({ type: 'AUTH_LOADING' })
+    try {
+      const response = await authService.register(payload)
+      dispatch({ type: 'AUTH_SUCCESS', payload: response.user })
+    } catch (err: unknown) {
+      const msg =
+        (err as { response?: { data?: { message?: string } } })?.response?.data?.message ??
+        'Could not create account.'
+      dispatch({ type: 'AUTH_FAILURE', payload: msg })
+      throw err
+    }
+  }, [])
+
   const logout = useCallback(async () => {
     try {
       await authService.logout()
@@ -99,7 +114,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [])
 
   return (
-    <AuthContext.Provider value={{ ...state, login, logout, refreshUser }}>
+    <AuthContext.Provider value={{ ...state, login, register, logout, refreshUser }}>
       {children}
     </AuthContext.Provider>
   )
